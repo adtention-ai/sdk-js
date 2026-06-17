@@ -1,0 +1,57 @@
+{
+  "name": "@adtention/sdk",
+  "version": "0.1.0",
+  "description": "Publisher SDK for ADtention — show one sponsored line in your app's wait states and earn a revshare. Terminal-safe, idempotent, multi-tenant.",
+  "type": "module",
+  "license": "MIT",
+  "author": "ADtention",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adtention-ai/sdk-js.git"
+  },
+  "bugs": { "url": "https://github.com/adtention-ai/sdk-js/issues" },
+  "homepage": "https://github.com/adtention-ai/sdk-js#readme",
+  "sideEffects": false,
+  "publishConfig": { "access": "public" },
+  "keywords": [
+    "adtention",
+    "ads",
+    "sdk",
+    "developer-tools",
+    "status-line",
+    "revshare"
+  ],
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "import": "./dist/node.js",
+      "require": "./dist/node.cjs"
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test test/",
+    "prepublishOnly": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "tsup": "^8.3.5",
+    "typescript": "^5.6.0"
+  }
+}
