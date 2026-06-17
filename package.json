@@ -1,6 +1,6 @@
 {
   "name": "@adtention/sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Publisher SDK for ADtention — show one sponsored line in your app's wait states and earn a revshare. Terminal-safe, idempotent, multi-tenant.",
   "type": "module",
   "license": "MIT",
@@ -9,10 +9,14 @@
     "type": "git",
     "url": "git+https://github.com/adtention-ai/sdk-js.git"
   },
-  "bugs": { "url": "https://github.com/adtention-ai/sdk-js/issues" },
+  "bugs": {
+    "url": "https://github.com/adtention-ai/sdk-js/issues"
+  },
   "homepage": "https://github.com/adtention-ai/sdk-js#readme",
   "sideEffects": false,
-  "publishConfig": { "access": "public" },
+  "publishConfig": {
+    "access": "public"
+  },
   "keywords": [
     "adtention",
     "ads",
