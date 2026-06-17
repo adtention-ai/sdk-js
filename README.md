@@ -9,7 +9,7 @@ process.
   ever see it. No escape injection, no log injection.
 - **Idempotent** — every serve carries a nonce; retries never double-count.
 - **Multi-tenant** — one publisher account, many end users, each rate-limited independently.
-- **Universal** — the core uses only `fetch` + Web Crypto, so it runs on Node 18+, Cloudflare
+- **Universal** — the core uses only `fetch` + Web Crypto, so it runs on Node 20+, Cloudflare
   Workers, Deno, Bun, and browsers. A file-backed identity store for Node lives at
   `@adtention/sdk/node`.
 

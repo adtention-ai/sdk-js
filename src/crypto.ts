@@ -1,10 +1,10 @@
-// Universal crypto helpers — Web Crypto only (globalThis.crypto), so they run on Node 18+,
+// Universal crypto helpers — Web Crypto only (globalThis.crypto), so they run on Node 20+,
 // Workers, Deno, Bun, and browsers without a polyfill.
 
 function webcrypto(): Crypto {
   const c = (globalThis as { crypto?: Crypto }).crypto;
   if (!c || !c.getRandomValues) {
-    throw new Error('Web Crypto unavailable: this runtime lacks globalThis.crypto. Use Node 18+.');
+    throw new Error('Web Crypto unavailable: this runtime lacks globalThis.crypto. Use Node 20+.');
   }
   return c;
 }

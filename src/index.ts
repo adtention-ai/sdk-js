@@ -6,7 +6,7 @@
 //   - SponsorSlot: a high-level "show a sponsor line in my wait state" helper with per-end-user
 //     dwell, caching, and optional self-managed identity.
 //
-// The core is universal (global fetch + Web Crypto only): Node 18+, Workers, Deno, Bun, browsers.
+// The core is universal (global fetch + Web Crypto only): Node 20+, Workers, Deno, Bun, browsers.
 // A Node file-backed identity store is available from "@adtention/sdk/node".
 
 export { AdtentionClient } from './client.js';
