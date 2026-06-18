@@ -99,12 +99,12 @@ const client = new AdtentionClient({ publisherId: 'pub_your_id' });
 
 const ad = await client.serve({ category: 'web', subject });
 // ad.text is sanitized; ad.clickUrl is absolute + http(s)-only
-console.log(ad.text, ad.billable, ad.balanceUsd);
+console.log(ad.text, ad.billable, ad.credit);
 
 // Record a click (engagement only, never billed) and get the destination to open:
 const dest = await client.recordClick(ad.impressionId);
 
-// Check earnings:
+// Check earnings (account-level — the project's running balance, for your own dashboard):
 const bal = await client.balance();
 console.log(bal.balanceUsd, bal.payable);
 ```
@@ -203,8 +203,9 @@ code, file contents, prompt text, paths, repo names, or transcripts.
 
 - `register({ ref?, kind? })` → `{ publisherId, secret, referralCode }` (adopts the identity)
 - `serve({ category?, subject?, nonce? })` → `ServeResult` (sanitized `text`, absolute `clickUrl`,
-  `billable`, `credit`, `balanceUsd`, `dedup`)
-- `balance(publisherId?)` → `BalanceResult`
+  `billable`, `credit`, `dedup`)
+- `balance(publisherId?)` → `BalanceResult` (account-level earnings — for the project's own dashboard,
+  not the end-user render)
 - `recordClick(impressionId)` → destination URL `string | null` (Node/CLI; in a browser, navigate
   to `ad.clickUrl` directly and let the browser follow the 302)
 - `resolveClickUrl(clickUrl)` → absolute http(s) URL or `null`

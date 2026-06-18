@@ -25,7 +25,6 @@ export interface Sponsor {
   category: Category | null;
   billable: boolean;
   credit: number;
-  balanceUsd: number;
   /** Was this returned from cache (throttled/error) rather than a fresh serve this call? */
   fromCache: boolean;
 }
@@ -184,7 +183,6 @@ function toSponsor(res: ServeResult): Sponsor {
     category: res.category,
     billable: res.billable,
     credit: res.credit,
-    balanceUsd: res.balanceUsd,
     fromCache: false,
   };
 }

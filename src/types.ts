@@ -59,8 +59,6 @@ export interface ServeResult {
   billable: boolean;
   /** USD credited to the publisher for this impression (0 when not billable). */
   credit: number;
-  /** Publisher's running balance after this impression. */
-  balanceUsd: number;
   /** `true` when this was an idempotent replay of a prior nonce (no new impression, no credit). */
   dedup: boolean;
 }

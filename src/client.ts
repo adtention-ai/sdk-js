@@ -97,7 +97,6 @@ export class AdtentionClient {
       category: isCategory(cat) ? cat : null,
       billable: r.billable === true,
       credit: typeof r.credit === 'number' ? r.credit : 0,
-      balanceUsd: typeof r.balance_usd === 'number' ? r.balance_usd : 0,
       dedup: r.dedup === true,
     };
   }
