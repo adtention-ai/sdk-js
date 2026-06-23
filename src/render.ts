@@ -68,6 +68,11 @@ export class SponsorSlot {
   private identityReady: Promise<void> | null = null;
 
   constructor(opts: SponsorSlotOptions = {}) {
+    // serveOnly (provisioned publisherId) and identityStore (self-managed identity) are mutually
+    // exclusive: one means "never register", the other means "register + self-heal".
+    if (opts.serveOnly && opts.identityStore) {
+      throw new AdtentionError('serve_only', 'serveOnly cannot be combined with identityStore: pick one (a provisioned publisherId, or self-managed identity)');
+    }
     this.client = opts.client ?? new AdtentionClient(opts);
     this.category = opts.category;
     this.dwellMs = opts.dwellMs ?? 15000;
@@ -84,8 +89,17 @@ export class SponsorSlot {
    * Never throws on a serve failure — it reports via `onError` and falls back to cache.
    */
   async next(args: { subject?: string; category?: Category } = {}): Promise<Sponsor | null> {
-    await this.ensureIdentity();
     const key = args.subject ?? '';
+    try {
+      await this.ensureIdentity();
+    } catch (e) {
+      // Identity not ready (e.g. the first register failed because the server was down). Honor the
+      // "never throws into your UI" contract: report and fall back to cache. ensureIdentity has
+      // cleared its latch, so the next call retries registration.
+      this.onError?.(e instanceof AdtentionError ? e : new AdtentionError('unknown', String(e)));
+      const cached = this.cache.get(key)?.ad ?? null;
+      return cached ? { ...cached, fromCache: true } : null;
+    }
     const now = Date.now();
     const entry = this.cache.get(key);
 
@@ -160,7 +174,10 @@ export class SponsorSlot {
         }
         const reg = await this.client.register(this.ref ? { ref: this.ref } : {});
         await store.save({ publisherId: reg.publisherId, secret: reg.secret, referralCode: reg.referralCode });
-      })();
+      })().catch((e) => {
+        this.identityReady = null; // first attempt failed: clear the latch so the next call retries
+        throw e;
+      });
     }
     return this.identityReady;
   }

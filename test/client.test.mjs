@@ -40,6 +40,50 @@ test('serve sanitizes ad text, derives camelCase, sends publisher_id + nonce', a
   assert.ok(typeof calls[0].body.nonce === 'string' && calls[0].body.nonce.length > 0);
 });
 
+test('clientTag is sent as wire `client` on register and serve', async () => {
+  const { fetch, calls } = recordingFetch((path) =>
+    path === '/v1/register'
+      ? fakeResponse(200, { publisher_id: 'pub_abc123ff', secret: 's', referral_code: 'wxyz234' })
+      : fakeResponse(200, { ad_id: 'c_x', text: 'hi', impression_id: 'imp_1', billable: true, credit: 0.01 }));
+  const c = new AdtentionClient({ apiBase: API, publisherId: 'pub_deadbeef', clientTag: 'acme-cli', fetch });
+  await c.register();
+  await c.serve({ category: 'web', subject: 'u1' });
+  assert.equal(calls[0].body.client, 'acme-cli'); // register
+  assert.equal(calls[1].body.client, 'acme-cli'); // serve
+});
+
+test('no clientTag -> the `client` field is omitted entirely', async () => {
+  const { fetch, calls } = recordingFetch(() =>
+    fakeResponse(200, { ad_id: 'c_x', text: 'hi', impression_id: 'imp_1', billable: true, credit: 0.01 }));
+  const c = new AdtentionClient({ apiBase: API, publisherId: 'pub_deadbeef', fetch });
+  await c.serve({ category: 'web' });
+  assert.ok(!('client' in calls[0].body)); // absent, not null/empty
+});
+
+test('serveOnly without a publisherId throws at construction', () => {
+  assert.throws(() => new AdtentionClient({ apiBase: API, serveOnly: true, fetch: globalThis.fetch }), (e) => {
+    assert.ok(e instanceof AdtentionError);
+    assert.equal(e.code, 'no_publisher');
+    return true;
+  });
+});
+
+test('serveOnly disables register()', async () => {
+  const { fetch, calls } = recordingFetch(() => fakeResponse(200, {}));
+  const c = new AdtentionClient({ apiBase: API, publisherId: 'pub_deadbeef', serveOnly: true, fetch });
+  await assert.rejects(() => c.register(), (e) => e instanceof AdtentionError && e.code === 'serve_only');
+  assert.equal(calls.length, 0); // never hit the network
+});
+
+test('serveOnly still serves normally with a provisioned publisherId', async () => {
+  const { fetch, calls } = recordingFetch(() =>
+    fakeResponse(200, { ad_id: 'c_x', text: 'hi', impression_id: 'imp_1', billable: true, credit: 0.01 }));
+  const c = new AdtentionClient({ apiBase: API, publisherId: 'pub_deadbeef', serveOnly: true, clientTag: 'acme', fetch });
+  const res = await c.serve({ category: 'web', subject: 'u1' });
+  assert.equal(res.billable, true);
+  assert.equal(calls[0].body.client, 'acme');
+});
+
 test('serve derives clickUrl on a deduped replay (server omits click_url)', async () => {
   const { fetch } = recordingFetch(() =>
     fakeResponse(200, { ad_id: 'c_x', text: 'hi', impression_id: 'imp_9', billable: false, dedup: true, balance_usd: 1 }));

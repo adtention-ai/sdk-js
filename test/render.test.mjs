@@ -1,12 +1,41 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SponsorSlot, MemoryIdentityStore, getSponsorLine } from '../dist/index.js';
+import { SponsorSlot, MemoryIdentityStore, getSponsorLine, AdtentionError } from '../dist/index.js';
 import { fakeResponse, recordingFetch } from './_harness.mjs';
 
 const API = 'https://api.example.test';
 
+test('serveOnly + identityStore is rejected at construction (contradictory)', () => {
+  assert.throws(
+    () => new SponsorSlot({ apiBase: API, publisherId: 'pub_deadbeef', serveOnly: true, identityStore: new MemoryIdentityStore(), fetch: globalThis.fetch }),
+    (e) => e instanceof AdtentionError && e.code === 'serve_only',
+  );
+});
+
 const adResponse = (text = 'hi', id = 'imp_1') =>
   fakeResponse(200, { ad_id: 'c_x', text, click_url: `/v1/click/${id}`, impression_id: id, category: 'web', billable: true, credit: 0.01, balance_usd: 1 });
+
+test('identityStore: a failed first register degrades to null (no throw) and retries next call', async () => {
+  let registerCalls = 0;
+  const { fetch } = recordingFetch((path) => {
+    if (path === '/v1/register') {
+      registerCalls += 1;
+      if (registerCalls === 1) return fakeResponse(500, { error: 'server_error' }); // first attempt fails
+      return fakeResponse(200, { publisher_id: 'pub_abc123ff', secret: 's', referral_code: 'wxyz234' });
+    }
+    return adResponse(); // serve
+  });
+  const errors = [];
+  const slot = new SponsorSlot({ apiBase: API, identityStore: new MemoryIdentityStore(), fetch, onError: (e) => errors.push(e) });
+
+  const first = await slot.next();   // register fails on our side
+  assert.equal(first, null);         // degraded, did NOT throw into the caller
+  assert.ok(errors.length >= 1);     // reported via onError instead
+
+  const second = await slot.next();  // latch cleared -> retries register (succeeds) -> serves
+  assert.ok(second && second.text);  // got an ad
+  assert.equal(registerCalls, 2);    // it retried, was not permanently latched
+});
 
 test('next() dwell-gates: a second call within dwell reuses cache, no extra serve', async () => {
   const { fetch, calls } = recordingFetch(() => adResponse());
