@@ -40,24 +40,16 @@ test('serve sanitizes ad text, derives camelCase, sends publisher_id + nonce', a
   assert.ok(typeof calls[0].body.nonce === 'string' && calls[0].body.nonce.length > 0);
 });
 
-test('clientTag is sent as wire `client` on register and serve', async () => {
+test('the `client` field is never sent on register or serve (derived server-side from the publisher)', async () => {
   const { fetch, calls } = recordingFetch((path) =>
     path === '/v1/register'
       ? fakeResponse(200, { publisher_id: 'pub_abc123ff', secret: 's', referral_code: 'wxyz234' })
       : fakeResponse(200, { ad_id: 'c_x', text: 'hi', impression_id: 'imp_1', billable: true, credit: 0.01 }));
-  const c = new AdtentionClient({ apiBase: API, publisherId: 'pub_deadbeef', clientTag: 'acme-cli', fetch });
+  const c = new AdtentionClient({ apiBase: API, publisherId: 'pub_deadbeef', fetch });
   await c.register();
   await c.serve({ category: 'web', subject: 'u1' });
-  assert.equal(calls[0].body.client, 'acme-cli'); // register
-  assert.equal(calls[1].body.client, 'acme-cli'); // serve
-});
-
-test('no clientTag -> the `client` field is omitted entirely', async () => {
-  const { fetch, calls } = recordingFetch(() =>
-    fakeResponse(200, { ad_id: 'c_x', text: 'hi', impression_id: 'imp_1', billable: true, credit: 0.01 }));
-  const c = new AdtentionClient({ apiBase: API, publisherId: 'pub_deadbeef', fetch });
-  await c.serve({ category: 'web' });
-  assert.ok(!('client' in calls[0].body)); // absent, not null/empty
+  assert.ok(!('client' in calls[0].body)); // register: absent, not null/empty
+  assert.ok(!('client' in calls[1].body)); // serve: absent, not null/empty
 });
 
 test('serveOnly without a publisherId throws at construction', () => {
@@ -78,10 +70,10 @@ test('serveOnly disables register()', async () => {
 test('serveOnly still serves normally with a provisioned publisherId', async () => {
   const { fetch, calls } = recordingFetch(() =>
     fakeResponse(200, { ad_id: 'c_x', text: 'hi', impression_id: 'imp_1', billable: true, credit: 0.01 }));
-  const c = new AdtentionClient({ apiBase: API, publisherId: 'pub_deadbeef', serveOnly: true, clientTag: 'acme', fetch });
+  const c = new AdtentionClient({ apiBase: API, publisherId: 'pub_deadbeef', serveOnly: true, fetch });
   const res = await c.serve({ category: 'web', subject: 'u1' });
   assert.equal(res.billable, true);
-  assert.equal(calls[0].body.client, 'acme');
+  assert.ok(!('client' in calls[0].body));
 });
 
 test('serve derives clickUrl on a deduped replay (server omits click_url)', async () => {

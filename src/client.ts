@@ -31,13 +31,6 @@ export interface AdtentionClientOptions {
   /** Install secret — only needed for {@link AdtentionClient.bind}/`payout`. Keep it server-side. */
   secret?: string;
   /**
-   * Originating-tool tag identifying which integration produced the traffic (e.g. your app's
-   * slug). Sent on register + serve as the wire `client` field and recorded per-impression, so
-   * traffic rolls up by integration even across rotated publisher ids. Slugified server-side
-   * (lowercased, `[a-z0-9._-]`, max 64 chars). Set once here; it applies to every call.
-   */
-  clientTag?: string;
-  /**
    * Lock this client to serving only. Requires a `publisherId` (throws at construction without
    * one) and makes {@link AdtentionClient.register} throw. Use it in a distributed/multi-tenant
    * embed whose `publisherId` is provisioned out of band (DB or portal) so the embed can never
@@ -55,7 +48,6 @@ export interface AdtentionClientOptions {
 export class AdtentionClient {
   publisherId: string | undefined;
   private secret: string | undefined;
-  private readonly clientTag: string | undefined;
   private readonly serveOnly: boolean;
   readonly apiBase: string;
   private readonly timeoutMs: number;
@@ -64,7 +56,6 @@ export class AdtentionClient {
   constructor(opts: AdtentionClientOptions = {}) {
     this.publisherId = opts.publisherId;
     this.secret = opts.secret;
-    this.clientTag = opts.clientTag;
     this.serveOnly = opts.serveOnly === true;
     this.apiBase = (opts.apiBase ?? DEFAULT_API_BASE).replace(/\/+$/, '');
     this.timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -83,7 +74,6 @@ export class AdtentionClient {
     const body: Record<string, unknown> = {};
     if (args.ref) body.ref = args.ref;
     if (args.kind) body.kind = args.kind;
-    if (this.clientTag) body.client = this.clientTag;
     const r = await this.request('POST', '/v1/register', body);
     const out: RegisterResult = {
       publisherId: String(r.publisher_id),
@@ -107,7 +97,6 @@ export class AdtentionClient {
     const body: Record<string, unknown> = { publisher_id: publisherId, nonce };
     if (args.category) body.category = args.category;
     if (args.subject) body.subject = args.subject;
-    if (this.clientTag) body.client = this.clientTag;
     const r = await this.request('POST', '/v1/serve', body);
 
     const impressionId = String(r.impression_id);

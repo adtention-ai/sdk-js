@@ -51,9 +51,10 @@ There are two shapes, and the SDK handles both:
 ## Get a publisher account
 
 Before you can serve, you need a `publisher_id`. Create one in the
-[ADtention portal](https://adtention.ai/onboard): it gives you your `publisher_id`, your
-`clientTag`, and your payout setup. This is a **one-time** step for you. Your end
-users never register.
+[ADtention portal](https://adtention.ai/onboard): you pick a client name for your tool, and it
+gives you your `publisher_id` and your payout setup. The client name is linked to your
+`publisher_id` server-side and used to roll up your traffic — you never pass it from code. This is
+a **one-time** step for you. Your end users never register.
 
 Then wire it in:
 - **Hosted app:** put `publisherId` in your backend env (e.g. `ADTENTION_PUBLISHER_ID`).
@@ -207,12 +208,9 @@ code, file contents, prompt text, paths, repo names, or transcripts.
 ## API reference
 
 ### `new AdtentionClient(options)`
-`{ publisherId?, secret?, clientTag?, serveOnly?, apiBase?, timeoutMs?, fetch? }`. `apiBase`
+`{ publisherId?, secret?, serveOnly?, apiBase?, timeoutMs?, fetch? }`. `apiBase`
 defaults to `https://api.adtention.ai`.
 
-- `clientTag`: originating-tool slug (e.g. your app's name) sent on register and serve and recorded
-  per impression, so traffic rolls up by integration. Slugified server-side (lowercased,
-  `[a-z0-9._-]`, max 64 chars).
 - `serveOnly`: lock the client to serving only. Requires a `publisherId` (throws without one) and
   makes `register()` throw. Use it in a distributed embed whose `publisherId` is provisioned out of
   band, so the embed can never create a new account.
@@ -228,7 +226,7 @@ defaults to `https://api.adtention.ai`.
 - `bind(destination, secret?)` and `payout(kind?, secret?)` are management calls and need the secret.
 
 ### `new SponsorSlot(options)`
-`AdtentionClient` options (including `clientTag` and `serveOnly`) plus `{ client?, category?,
+`AdtentionClient` options (including `serveOnly`) plus `{ client?, category?,
 dwellMs?, cacheMax?, identityStore?, ref?, onError? }`. `serveOnly` and `identityStore` are mutually
 exclusive: construction throws if both are set.
 
