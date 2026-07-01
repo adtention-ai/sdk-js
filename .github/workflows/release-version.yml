@@ -1,0 +1,102 @@
+name: Prepare release version
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+    branches: [main]
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: prepare-release-version-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  version:
+    if: >-
+      github.event.pull_request.base.ref == 'main' &&
+      github.event.pull_request.head.ref == 'dev' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - name: Bump package version
+        id: bump
+        run: |
+          set -euo pipefail
+
+          BASE_REF="${{ github.event.pull_request.base.ref }}"
+          HEAD_REF="${{ github.event.pull_request.head.ref }}"
+          LABELS='${{ toJSON(github.event.pull_request.labels.*.name) }}'
+
+          RELEASE_LABELS="$(echo "$LABELS" | jq -r '.[] | select(test("^release:(major|minor|patch)$"))')"
+          RELEASE_LABEL_COUNT="$(printf '%s\n' "$RELEASE_LABELS" | sed '/^$/d' | wc -l | tr -d ' ')"
+
+          if [ "$RELEASE_LABEL_COUNT" -gt 1 ]; then
+            echo "::error::Use only one release label: release:patch, release:minor, or release:major."
+            exit 1
+          fi
+
+          BUMP="patch"
+          if [ "$RELEASE_LABEL_COUNT" -eq 1 ]; then
+            BUMP="${RELEASE_LABELS#release:}"
+          fi
+
+          git fetch origin "$BASE_REF:refs/remotes/origin/$BASE_REF" --depth=1
+          git fetch --tags --force
+
+          BASE_VERSION="$(git show "origin/$BASE_REF:package.json" | node -pe "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")"
+          CURRENT_VERSION="$(node -pe "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")"
+          PACKAGE_NAME="$(node -pe "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).name")"
+          DESIRED_VERSION="$(BASE_VERSION="$BASE_VERSION" BUMP="$BUMP" node -e "const base = process.env.BASE_VERSION; const bump = process.env.BUMP; const parts = base.split('.').map(Number); if (parts.length !== 3 || parts.some((part) => !Number.isInteger(part) || part < 0)) throw new Error('Unsupported package version: ' + base); const [major, minor, patch] = parts; if (bump === 'major') console.log((major + 1) + '.0.0'); else if (bump === 'minor') console.log(major + '.' + (minor + 1) + '.0'); else if (bump === 'patch') console.log(major + '.' + minor + '.' + (patch + 1)); else throw new Error('Unsupported release bump: ' + bump);")"
+
+          TAG="v$DESIRED_VERSION"
+
+          echo "Base version: $BASE_VERSION"
+          echo "Current PR version: $CURRENT_VERSION"
+          echo "Release bump: $BUMP"
+          echo "Desired version: $DESIRED_VERSION"
+
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "::error::$TAG already exists. Choose a larger release label."
+            exit 1
+          fi
+
+          if npm view "$PACKAGE_NAME@$DESIRED_VERSION" version >/dev/null 2>&1; then
+            echo "::error::$PACKAGE_NAME@$DESIRED_VERSION already exists on npm. Choose a larger release label."
+            exit 1
+          fi
+
+          if [ "$CURRENT_VERSION" = "$DESIRED_VERSION" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "desired_version=$DESIRED_VERSION" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          npm version "$DESIRED_VERSION" --no-git-tag-version
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "chore: prepare release v$DESIRED_VERSION"
+          git push origin "HEAD:$HEAD_REF"
+
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "desired_version=$DESIRED_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger CI for version bump
+        if: steps.bump.outputs.changed == 'true'
+        run: gh workflow run ci.yml --ref "${{ github.event.pull_request.head.ref }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
