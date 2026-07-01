@@ -1,0 +1,139 @@
+name: Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    if: >-
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.base.ref == 'main' &&
+      github.event.pull_request.head.ref == 'dev' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    outputs:
+      package_name: ${{ steps.package.outputs.package_name }}
+      version: ${{ steps.package.outputs.version }}
+      tag: ${{ steps.package.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Read package version
+        id: package
+        run: |
+          PACKAGE_NAME="$(npm pkg get name | tr -d '"')"
+          VERSION="$(npm pkg get version | tr -d '"')"
+          TAG="v${VERSION}"
+
+          if [ -z "$PACKAGE_NAME" ] || [ -z "$VERSION" ]; then
+            echo "::error::package.json must define both name and version."
+            exit 1
+          fi
+
+          echo "package_name=$PACKAGE_NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure version was not already released
+        run: |
+          PACKAGE_NAME="${{ steps.package.outputs.package_name }}"
+          VERSION="${{ steps.package.outputs.version }}"
+          TAG="${{ steps.package.outputs.tag }}"
+
+          git fetch --tags --force
+
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            echo "::error::$TAG already exists. Let the release-version workflow choose a new package version before merging dev into main."
+            exit 1
+          fi
+
+          if npm view "$PACKAGE_NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "::error::$PACKAGE_NAME@$VERSION already exists on npm. Let the release-version workflow choose a new package version before merging dev into main."
+            exit 1
+          fi
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build + test
+        run: npm test
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: npm-production
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - run: npm ci
+
+      - name: Re-check release version
+        run: |
+          PACKAGE_NAME="$(npm pkg get name | tr -d '"')"
+          VERSION="$(npm pkg get version | tr -d '"')"
+
+          if [ "$PACKAGE_NAME" != "${{ needs.verify.outputs.package_name }}" ]; then
+            echo "::error::Package name changed between verify and publish."
+            exit 1
+          fi
+
+          if [ "$VERSION" != "${{ needs.verify.outputs.version }}" ]; then
+            echo "::error::Package version changed between verify and publish."
+            exit 1
+          fi
+
+          git fetch --tags --force
+
+          if git rev-parse -q --verify "refs/tags/${{ needs.verify.outputs.tag }}" >/dev/null; then
+            echo "::error::${{ needs.verify.outputs.tag }} already exists."
+            exit 1
+          fi
+
+          if npm view "$PACKAGE_NAME@$VERSION" version >/dev/null 2>&1; then
+            echo "::error::$PACKAGE_NAME@$VERSION already exists on npm."
+            exit 1
+          fi
+
+      - name: Publish to npm
+        run: npm publish --access public
+
+      - name: Create Git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ needs.verify.outputs.tag }}" -m "Release ${{ needs.verify.outputs.tag }}"
+          git push origin "${{ needs.verify.outputs.tag }}"
+
+      - name: Create GitHub release
+        run: gh release create "${{ needs.verify.outputs.tag }}" --title "${{ needs.verify.outputs.tag }}" --generate-notes --verify-tag
+        env:
+          GH_TOKEN: ${{ github.token }}
