@@ -1,6 +1,6 @@
 {
   "name": "@adtention/sdk",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Publisher SDK for ADtention — show one sponsored line in your app's wait states and earn a revshare. Terminal-safe, idempotent, multi-tenant.",
   "type": "module",
   "license": "MIT",
